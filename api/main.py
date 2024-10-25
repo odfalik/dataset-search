@@ -104,8 +104,11 @@ async def process_all_datasets():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """FastAPI handler for startup and shutdown events"""
-    # await process_all_datasets()
+    # Process datasets on startup only if flag is enabled
+    if str(settings.PROCESS_DATASETS).__str__().lower() == "true":
+        await process_all_datasets()
     yield
+    # Nothing to clean up on shutdown
 
 
 # Initialize FastAPI app
@@ -126,9 +129,12 @@ async def search_datasets(query: SearchQuery) -> List[str]:
         .embedding
     )
 
-    results = index.query(
+    vector_query_response = index.query(
         vector=query_embedding,
         top_k=NUM_RESULTS,
     )
 
-    return [result["id"] for result in results.matches]
+    if len(vector_query_response.matches) == 0:
+        raise ValueError("No results found. Database is likely empty.")
+
+    return [result["id"] for result in vector_query_response.matches]
