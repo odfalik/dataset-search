@@ -131,6 +131,4 @@ async def search_datasets(query: SearchQuery) -> List[str]:
         top_k=NUM_RESULTS,
     )
 
-    print([result.id for result in results])
-    # top_dataset_names = [row["dataset_name"] for row in rows]
-    # return top_dataset_names
+    return [result["id"] for result in results.matches]
