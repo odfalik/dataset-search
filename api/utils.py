@@ -7,6 +7,10 @@ from api.logging import logger
 
 
 def reword_search_query(query: str) -> str:
+    """
+    Calls an LLM to reword a search query so that it can better be embedded into a vector.
+    """
+
     response = openai_client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[
