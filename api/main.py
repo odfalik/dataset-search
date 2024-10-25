@@ -1,92 +1,16 @@
 from contextlib import asynccontextmanager
-import sys
 from typing import List
-from api.config import Settings
 from fastapi import FastAPI
-import tiktoken
 import json
-from pinecone import Pinecone
-import openai
-import logging
-
-from api.models import Dataset, SearchQuery
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-stream_handler = logging.StreamHandler(sys.stdout)
-log_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-stream_handler.setFormatter(log_formatter)
-logger.addHandler(stream_handler)
-
-settings = Settings()  # type: ignore
-
-openai.api_key = settings.OPENAI_API_KEY
-openai_client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
-
-pc = Pinecone(api_key=settings.PINECONE_API_KEY)
-index = pc.Index(settings.PINECONE_INDEX)
-
-EMBEDDING_MODEL = "text-embedding-ada-002"
-ada_002_encoding = tiktoken.encoding_for_model(EMBEDDING_MODEL)
-
-
-def format_dataset_embedding_input(dataset: Dataset):
-    """Reformats dataset JSON into text that can be embedded"""
-    return f"""ID: {dataset.dataset_name}
-Name: {dataset.readable_name}
-Description: {dataset.dataset_description}
-Category: {dataset.category}
-Subcategories: {', '.join(dataset.subcategories)}
-Columns: {', '.join(dataset.columns)}
-"""
-
-
-async def upsert_dataset_embedding_batch(datasets: List[Dataset]):
-    """
-    Embeds and upserts embeddings for a batch of datasets into vector store
-    """
-    dataset_embedding_inputs = [
-        format_dataset_embedding_input(dataset) for dataset in datasets
-    ]
-
-    max_token = max(
-        len(ada_002_encoding.encode(input)) for input in dataset_embedding_inputs
-    )
-    if max_token > 8191:
-        raise ValueError("Input exceeds max supported token limit of 8191")
-
-    embeddings = [
-        # We sort the results to match the input order b/c OpenAI
-        # batch embedding API doesn't guarantee order
-        result.embedding
-        for result in sorted(
-            openai_client.embeddings.create(
-                input=dataset_embedding_inputs,
-                model=EMBEDDING_MODEL,
-            ).data,
-            key=lambda result: result.index,
-        )
-    ]
-
-    # Store dataset embedding
-    index.upsert(
-        vectors=list(
-            zip(
-                [dataset.dataset_name for dataset in datasets],
-                embeddings,
-            )
-        )
-    )
-
-    logger.info(
-        f"Upserted dataset embeddings for {', '.join([
-            dataset.dataset_name for dataset in datasets
-        ])}"
-    )
+from api.config import settings
+from api.clients import openai_client, index, EMBEDDING_MODEL
+from api.data_models import Dataset, SearchQuery
+from api.preprocess import upsert_dataset_embedding_batch
+from api.logging import logger
 
 
 async def process_all_datasets():
-    """Loads dataset metadata and stores embeddings in the vector store"""
+    """Loads dataset metadata, embeds, and upserts all datasets"""
     BATCH_SIZE = 100
     logger.info("Starting process_all_datasets")
 

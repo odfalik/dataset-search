@@ -13,3 +13,6 @@ class Settings(BaseSettings):
 
     # Load settings from the .env file
     model_config = SettingsConfigDict(env_file=".env")
+
+
+settings = Settings()  # type: ignore
