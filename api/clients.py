@@ -8,7 +8,7 @@ openai.api_key = settings.OPENAI_API_KEY
 openai_client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
 
 EMBEDDING_MODEL = "text-embedding-ada-002"
-ada_002_encoding = tiktoken.encoding_for_model(EMBEDDING_MODEL)
+EMBEDDING_MODEL_ENCODING = tiktoken.encoding_for_model(EMBEDDING_MODEL)
 EMBEDDING_MODEL_MAX_TOKENS = 8191
 
 # Pinecone

@@ -7,6 +7,7 @@ from api.clients import openai_client, index, EMBEDDING_MODEL
 from api.data_models import SearchQuery
 from api.preprocess import process_all_datasets
 from api.logging import logger
+from api.utils import reword_search_query
 
 
 @asynccontextmanager
@@ -24,7 +25,7 @@ app = FastAPI(lifespan=lifespan)
 
 
 @app.post("/search")
-async def search_datasets(query: SearchQuery) -> List[str]:
+async def search_datasets(body: SearchQuery) -> List[str]:
     """
     Searches for datasets based on the provided query.
 
@@ -34,11 +35,15 @@ async def search_datasets(query: SearchQuery) -> List[str]:
     NUM_RESULTS = 5
     # TODO consider search query re-wording (e.g. hypothetical document)
 
-    logger.info(f"Searching for datasets with query: {query.query}")
+    logger.info(f"Searching for datasets with query: {body.query}")
+
+    reworded_query = reword_search_query(body.query)
+
+    logger.info(f"Reworded query: {reworded_query}")
 
     query_embedding = (
         openai_client.embeddings.create(
-            input=[query.query],
+            input=[reworded_query],
             model=EMBEDDING_MODEL,
         )
         .data[0]

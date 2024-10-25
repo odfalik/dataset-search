@@ -6,7 +6,7 @@ from api.clients import (
     openai_client,
     index,
     EMBEDDING_MODEL,
-    ada_002_encoding,
+    EMBEDDING_MODEL_ENCODING,
 )
 from api.logging import logger
 
@@ -47,7 +47,8 @@ def upsert_dataset_embedding_batch(datasets: List[Dataset]) -> None:
     ]
 
     max_token = max(
-        len(ada_002_encoding.encode(input)) for input in dataset_embedding_inputs
+        len(EMBEDDING_MODEL_ENCODING.encode(input))
+        for input in dataset_embedding_inputs
     )
     if max_token > EMBEDDING_MODEL_MAX_TOKENS:
         raise ValueError(
