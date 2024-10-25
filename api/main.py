@@ -17,7 +17,7 @@ async def process_all_datasets():
     logger.info("Starting process_all_datasets")
 
     with open("data/dataset_metadata.json") as f:
-        datasets = [Dataset(**dataset) for dataset in json.load(f)[:10]]
+        datasets = [Dataset(**dataset) for dataset in json.load(f)]
 
         # Upsert dataset embeddings in batches
         for i in range(0, len(datasets), BATCH_SIZE):
