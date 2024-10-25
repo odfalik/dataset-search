@@ -1,30 +1,102 @@
 from contextlib import asynccontextmanager
+from typing import List
 from api.config import Settings
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from pydantic import BaseModel
+import tiktoken
 import json
 from pinecone import Pinecone
 import openai
+import logging
 
+from api.models import Dataset, SearchQuery
 
-settings = Settings()
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+settings = Settings()  # type: ignore
 
 openai.api_key = settings.OPENAI_API_KEY
+openai_client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
+
 pc = Pinecone(api_key=settings.PINECONE_API_KEY)
+index = pc.Index(settings.PINECONE_INDEX)
+
+EMBEDDING_MODEL = "text-embedding-ada-002"
+ada_002_encoding = tiktoken.encoding_for_model(EMBEDDING_MODEL)
+
+
+def format_dataset_embedding_input(dataset: Dataset):
+    """Reformats dataset JSON into text that can be embedded"""
+    return f"""Dataset ID: {dataset.dataset_name}
+Dataset Name: {dataset.readable_name}
+Description: {dataset.dataset_description}
+Category: {dataset.category}
+Subcategories: {', '.join(dataset.subcategories)}
+Columns: {', '.join(dataset.columns)}
+"""
+
+
+async def upsert_dataset_embedding_batch(datasets: List[Dataset]):
+    """Stores dataset embedding in the vector store"""
+    dataset_embedding_inputs = [
+        format_dataset_embedding_input(dataset) for dataset in datasets
+    ]
+
+    max_token = max(
+        len(ada_002_encoding.encode(input)) for input in dataset_embedding_inputs
+    )
+    if max_token > 8191:
+        logger.error("Input exceeds max supported token limit of 8191")
+        raise ValueError("Input exceeds max supported token limit of 8191")
+
+    embeddings = [
+        result.embedding
+        for result in sorted(  # We need to sort the results to match the input order
+            openai_client.embeddings.create(
+                input=dataset_embedding_inputs,
+                model=EMBEDDING_MODEL,
+            ).data,
+            key=lambda result: result.index,
+        )
+    ]
+
+    # Store dataset embedding
+    index.upsert(
+        vectors=list(
+            zip(
+                [dataset.dataset_name for dataset in datasets],
+                embeddings,
+            )
+        )
+    )
+
+    logger.info(
+        f"Upserted dataset embeddings for {[dataset.dataset_name for dataset in datasets]}"
+    )
 
 
 async def upsert_dataset_embeddings():
-    """Load dataset metadata and store embeddings in the vector store"""
+    """Loads dataset metadata and stores embeddings in the vector store"""
+    BATCH_SIZE = 100
+    logger.info("Starting upsert_dataset_embeddings")
+
     with open("data/dataset_metadata.json") as f:
-        datasets = json.load(f)
-        print(len(datasets))
-        # TODO Generate embeddings in parallel and upsert to vector store
+        datasets = [Dataset(**dataset) for dataset in json.load(f)[:10]]
+
+        # Upsert dataset embeddings in batches
+        for i in range(0, len(datasets), BATCH_SIZE):
+            logger.info(f"Processing batch {i} to {i + BATCH_SIZE}")
+            await upsert_dataset_embedding_batch(datasets[i : i + BATCH_SIZE])
+
+    logger.info("Completed upsert_dataset_embeddings")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """FastAPI handler for startup and shutdown events"""
-    await upsert_dataset_embeddings()
+    logger.debug("Starting up")
+    # await upsert_dataset_embeddings()
     yield
 
 
@@ -32,25 +104,26 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
-# Generate embeddings using OpenAI
-async def generate_embedding(text):
-    """Generate embeddings for a given text using OpenAI's GPT-3 model"""
-    # TODO chunking?
-    # TODO reformat before embedding?
-    # TODO embed
-    pass
-
-
-class Query(BaseModel):
-    query: str
-
-
 @app.post("/search")
-async def search_datasets(query: Query) -> list[str]:
-    raise HTTPException(status_code=501, detail="Not implemented")
+async def search_datasets(query: SearchQuery) -> list[str]:
+    NUM_RESULTS = 5
     # TODO consider search query re-wording (e.g. hypothetical document)
     # query_embedding = await generate_embedding(query.query)
 
-    # TODO
+    query_embedding = (
+        openai_client.embeddings.create(
+            input=[query.query],
+            model=EMBEDDING_MODEL,
+        )
+        .data[0]
+        .embedding
+    )
+
+    results = index.query(
+        vector=query_embedding,
+        top_k=NUM_RESULTS,
+    )
+
+    print([result.id for result in results])
     # top_dataset_names = [row["dataset_name"] for row in rows]
     # return top_dataset_names

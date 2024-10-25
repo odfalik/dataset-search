@@ -5,3 +5,4 @@ ruff
 pinecone
 python-dotenv
 pydantic-settings
+tiktoken
