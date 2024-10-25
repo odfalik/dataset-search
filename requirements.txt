@@ -1,0 +1,9 @@
+fastapi
+pydantic
+openai
+ruff
+pinecone
+python-dotenv
+pydantic-settings
+tiktoken
+uvicorn
