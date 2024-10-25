@@ -33,7 +33,6 @@ async def search_datasets(body: SearchQuery) -> List[str]:
     but it makes cURL testing easier as the query doesn't need to be URL-encoded.
     """
     NUM_RESULTS = 5
-    # TODO consider search query re-wording (e.g. hypothetical document)
 
     logger.info(f"Searching for datasets with query: {body.query}")
 
