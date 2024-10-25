@@ -1,30 +1,12 @@
 from contextlib import asynccontextmanager
 from typing import List
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-import json
 from api.config import settings
 from api.clients import openai_client, index, EMBEDDING_MODEL
-from api.data_models import Dataset, SearchQuery
-from api.preprocess import upsert_dataset_embedding_batch
+from api.data_models import SearchQuery
+from api.preprocess import process_all_datasets
 from api.logging import logger
-
-
-async def process_all_datasets():
-    """Loads dataset metadata, embeds, and upserts all datasets"""
-    BATCH_SIZE = 100
-    logger.info("Starting process_all_datasets")
-
-    with open("data/dataset_metadata.json") as f:
-        datasets = [Dataset(**dataset) for dataset in json.load(f)]
-
-        # Upsert dataset embeddings in batches
-        for i in range(0, len(datasets), BATCH_SIZE):
-            logger.info(f"Processing batch {i} to {i + BATCH_SIZE}")
-            await upsert_dataset_embedding_batch(datasets[i : i + BATCH_SIZE])
-
-    logger.info("Completed process_all_datasets")
 
 
 @asynccontextmanager
@@ -43,8 +25,16 @@ app = FastAPI(lifespan=lifespan)
 
 @app.post("/search")
 async def search_datasets(query: SearchQuery) -> List[str]:
+    """
+    Searches for datasets based on the provided query.
+
+    Note that this is not RESTful, as the search query is sent as a POST request,
+    but it makes cURL testing easier as the query doesn't need to be URL-encoded.
+    """
     NUM_RESULTS = 5
     # TODO consider search query re-wording (e.g. hypothetical document)
+
+    logger.info(f"Searching for datasets with query: {query.query}")
 
     query_embedding = (
         openai_client.embeddings.create(
@@ -60,15 +50,16 @@ async def search_datasets(query: SearchQuery) -> List[str]:
         top_k=NUM_RESULTS,
     )
 
-    if len(vector_query_response.matches) == 0:
+    num_matches = len(vector_query_response.matches)
+    logger.info(f"Found {num_matches} results")
+
+    if num_matches == 0:
         raise ValueError("No results found. Database is likely empty.")
 
     return [result["id"] for result in vector_query_response.matches]
 
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-
 @app.get("/")
 async def read_index():
+    """Serves the index.html file at the root path"""
     return FileResponse("static/index.html")

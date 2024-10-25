@@ -1,6 +1,9 @@
 project_id := 'dataset-search-439522'
 
-activate:
+init_venv:
+  python3 -m venv .venv
+
+activate: init_venv
   source .venv/bin/activate
 
 install: activate
