@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
 from typing import List
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 import json
 from api.config import settings
 from api.clients import openai_client, index, EMBEDDING_MODEL
@@ -62,3 +64,11 @@ async def search_datasets(query: SearchQuery) -> List[str]:
         raise ValueError("No results found. Database is likely empty.")
 
     return [result["id"] for result in vector_query_response.matches]
+
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+@app.get("/")
+async def read_index():
+    return FileResponse("static/index.html")

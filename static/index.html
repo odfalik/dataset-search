@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dataset Search</title>
+</head>
+<body>
+    <h1>Dataset Search</h1>
+    <form id="searchForm">
+        <input type="text" id="query" name="query" placeholder="Enter search query">
+        <button type="submit">Search</button>
+    </form>
+    <div id="results"></div>
+
+    <script>
+        document.getElementById('searchForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const query = document.getElementById('query').value;
+            const response = await fetch('/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ query })
+            });
+            const results = await response.json();
+            document.getElementById('results').innerHTML = results.join('<br>');
+        });
+    </script>
+</body>
+</html>
