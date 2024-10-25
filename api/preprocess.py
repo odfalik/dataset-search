@@ -53,7 +53,5 @@ async def upsert_dataset_embedding_batch(datasets: List[Dataset]):
     )
 
     logger.info(
-        f"Upserted dataset embeddings for {', '.join([
-            dataset.dataset_name for dataset in datasets
-        ])}"
+        f"Upserted dataset embeddings for {', '.join([dataset.dataset_name for dataset in datasets])}"
     )
