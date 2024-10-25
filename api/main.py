@@ -1,8 +1,8 @@
 from contextlib import asynccontextmanager
+import sys
 from typing import List
 from api.config import Settings
 from fastapi import FastAPI
-from pydantic import BaseModel
 import tiktoken
 import json
 from pinecone import Pinecone
@@ -13,6 +13,10 @@ from api.models import Dataset, SearchQuery
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+stream_handler = logging.StreamHandler(sys.stdout)
+log_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+stream_handler.setFormatter(log_formatter)
+logger.addHandler(stream_handler)
 
 settings = Settings()  # type: ignore
 
@@ -28,8 +32,8 @@ ada_002_encoding = tiktoken.encoding_for_model(EMBEDDING_MODEL)
 
 def format_dataset_embedding_input(dataset: Dataset):
     """Reformats dataset JSON into text that can be embedded"""
-    return f"""Dataset ID: {dataset.dataset_name}
-Dataset Name: {dataset.readable_name}
+    return f"""ID: {dataset.dataset_name}
+Name: {dataset.readable_name}
 Description: {dataset.dataset_description}
 Category: {dataset.category}
 Subcategories: {', '.join(dataset.subcategories)}
@@ -38,7 +42,9 @@ Columns: {', '.join(dataset.columns)}
 
 
 async def upsert_dataset_embedding_batch(datasets: List[Dataset]):
-    """Stores dataset embedding in the vector store"""
+    """
+    Embeds and upserts embeddings for a batch of datasets into vector store
+    """
     dataset_embedding_inputs = [
         format_dataset_embedding_input(dataset) for dataset in datasets
     ]
@@ -47,12 +53,13 @@ async def upsert_dataset_embedding_batch(datasets: List[Dataset]):
         len(ada_002_encoding.encode(input)) for input in dataset_embedding_inputs
     )
     if max_token > 8191:
-        logger.error("Input exceeds max supported token limit of 8191")
         raise ValueError("Input exceeds max supported token limit of 8191")
 
     embeddings = [
+        # We sort the results to match the input order b/c OpenAI
+        # batch embedding API doesn't guarantee order
         result.embedding
-        for result in sorted(  # We need to sort the results to match the input order
+        for result in sorted(
             openai_client.embeddings.create(
                 input=dataset_embedding_inputs,
                 model=EMBEDDING_MODEL,
@@ -72,14 +79,16 @@ async def upsert_dataset_embedding_batch(datasets: List[Dataset]):
     )
 
     logger.info(
-        f"Upserted dataset embeddings for {[dataset.dataset_name for dataset in datasets]}"
+        f"Upserted dataset embeddings for {', '.join([
+            dataset.dataset_name for dataset in datasets
+        ])}"
     )
 
 
-async def upsert_dataset_embeddings():
+async def process_all_datasets():
     """Loads dataset metadata and stores embeddings in the vector store"""
     BATCH_SIZE = 100
-    logger.info("Starting upsert_dataset_embeddings")
+    logger.info("Starting process_all_datasets")
 
     with open("data/dataset_metadata.json") as f:
         datasets = [Dataset(**dataset) for dataset in json.load(f)[:10]]
@@ -89,14 +98,13 @@ async def upsert_dataset_embeddings():
             logger.info(f"Processing batch {i} to {i + BATCH_SIZE}")
             await upsert_dataset_embedding_batch(datasets[i : i + BATCH_SIZE])
 
-    logger.info("Completed upsert_dataset_embeddings")
+    logger.info("Completed process_all_datasets")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """FastAPI handler for startup and shutdown events"""
-    logger.debug("Starting up")
-    # await upsert_dataset_embeddings()
+    # await process_all_datasets()
     yield
 
 
@@ -105,10 +113,9 @@ app = FastAPI(lifespan=lifespan)
 
 
 @app.post("/search")
-async def search_datasets(query: SearchQuery) -> list[str]:
+async def search_datasets(query: SearchQuery) -> List[str]:
     NUM_RESULTS = 5
     # TODO consider search query re-wording (e.g. hypothetical document)
-    # query_embedding = await generate_embedding(query.query)
 
     query_embedding = (
         openai_client.embeddings.create(
