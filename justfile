@@ -1,21 +1,19 @@
 project_id := 'dataset-search-439522'
 
-init_venv:
+@_default:
+  just --list
+
+setup:
   python3 -m venv .venv
+  ./.venv/bin/pip install -r requirements.txt
 
-activate: init_venv
-  source .venv/bin/activate
+serve: setup
+  ./.venv/bin/uvicorn api.main:app --reload
 
-install: activate
-  pip install -r requirements.txt
+format: setup
+  ./.venv/bin/ruff format .
 
-serve: activate install
-  uvicorn api.main:app --reload
-
-format: activate
-  ruff format .
-
-build:
+build: setup
   docker build --platform linux/amd64 -t dataset-search .
   docker tag dataset-search gcr.io/{{project_id}}/dataset-search
 

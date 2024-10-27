@@ -8,6 +8,8 @@
 
 - Python 3.8+
 - [just](https://just.systems/)
+- Docker
+- GCloud SDK
 
 ### Code Structure
 
