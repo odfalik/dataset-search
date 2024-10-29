@@ -25,9 +25,11 @@
 
 ## Usage
 
-To start the FastAPI server locally, copy the `.env.example` file to `.env` and fill in the required environment variables.
+1. To start the FastAPI server locally, copy the `.env.example` file to `.env` and fill in the required environment variables.
 
-And then simply run:
+2. Set up your Pinecone index with 8191 dimensions.
+
+3. And then simply run:
 
 ```sh
 just serve
