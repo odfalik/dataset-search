@@ -1,3 +1,5 @@
+set dotenv-load
+
 project_id := 'dataset-search-439522'
 venv_bin := './.venv/bin'
 
@@ -25,4 +27,4 @@ build: setup
 # Deploy the Docker image to Cloud Run
 deploy: build
   docker push gcr.io/{{project_id}}/dataset-search
-  gcloud run deploy dataset-search --image gcr.io/{{project_id}}/dataset-search --platform managed --region us-west1 --allow-unauthenticated --port 8000
+  gcloud run deploy dataset-search --image gcr.io/{{project_id}}/dataset-search --platform managed --region us-west1 --allow-unauthenticated --port $PORT
