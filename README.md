@@ -25,7 +25,9 @@
 
 ## Usage
 
-To start the FastAPI server locally, simply run:
+To start the FastAPI server locally, copy the `.env.example` file to `.env` and fill in the required environment variables.
+
+And then simply run:
 
 ```sh
 just serve
